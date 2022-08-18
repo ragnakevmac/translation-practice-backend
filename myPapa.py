@@ -27,7 +27,7 @@ def getDefinitions(text):
 
         if word not in jpToEngDict:
             jpToEngDict[word] = [] #init
-        if word == '。' or word == '、':
+        if word == '。' or word == '、' or word == '？' or word == '！':
             continue
 
     
@@ -43,6 +43,10 @@ def getDefinitions(text):
 
                 jpToEngDict[word] = definitions
 
+                break
+
+
+
             else: #if no match found, take the first diffDef
                 numOfEngDef = len(r2.data[0].senses)
                 definitions = []
@@ -50,6 +54,8 @@ def getDefinitions(text):
                     definitions = definitions + r2.data[0].senses[k].english_definitions
 
                 jpToEngDict[word] = definitions
+
+    print(json.dumps(jpToEngDict))
 
 
         
@@ -157,8 +163,6 @@ def translation():
 
     translatedTextTokens = content['translatedText'].split()
 
-    print(suggestedTranslationFromPapagoTokens)
-
     for translatorWord in translatedTextTokens:
         if translatorWord in suggestedTranslationFromPapagoDict:
             if suggestedTranslationFromPapagoDict[translatorWord] > 0:
@@ -212,7 +216,7 @@ def translation():
 
 
 
-    print(f"My Data: {content}")
+    # print(f"My Data: {content}")
     print('\n')
 
     print(f'YOUR JAPANESE GRADE IS: {totalScore}%')
