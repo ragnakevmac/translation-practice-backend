@@ -2,6 +2,9 @@ from flask import Flask, request, jsonify
 import requests
 import json
 import random
+import time
+import asyncio
+import aiohttp
 from jisho_api.tokenize import Tokens
 from jisho_api.word import Word
 from credentials import (
@@ -16,46 +19,82 @@ app = Flask(__name__)
 
 
 
+def getEngMeanings(jpToken, tokenRes):
+
+
+    numOfDiffDefs = len(tokenRes.data)
+    for j in range(numOfDiffDefs):
+
+        if tokenRes.data[j].slug == jpToken:
+            numOfEngDef = len(tokenRes.data[j].senses)
+            definitions = []
+            for k in range(numOfEngDef):
+                definitions = definitions + tokenRes.data[j].senses[k].english_definitions
+
+            return definitions
+
+
+        else: #if no match found, take the first diffDef
+
+            numOfEngDef = len(tokenRes.data[0].senses)
+            definitions = []
+            for k in range(numOfEngDef):
+                definitions = definitions + tokenRes.data[0].senses[k].english_definitions
+
+
+    return definitions
+
+
+
+
+
+
+def getJpEngDef(jpToEngDict):
+
+    for jpToken in jpToEngDict:
+
+        tokenRes = Word.request(jpToken)
+
+        if tokenRes:
+            jpToEngDict[jpToken] = getEngMeanings(jpToken, tokenRes)
+        else:
+            jpToEngDict[jpToken] = ['***SORRY BUT THIS WORD IS NOT FOUND IN THE DICTIONARY***']
+
+
+    return jpToEngDict
+
+
+
+
 def getDefinitions(text):
 
     jpToEngDict = {}
 
+    start = time.time()
+
     r = Tokens.request(text)
+
     numOfTokens = len(r.data)
+    
+
     for i in range(numOfTokens):
         word = r.data[i].token
-
-        if word not in jpToEngDict:
-            jpToEngDict[word] = [] #init
         if word == '。' or word == '、' or word == '？' or word == '！':
             continue
-
+        if word not in jpToEngDict:
+            jpToEngDict[word] = [] #init
     
-        r2 = Word.request(word)
-        numOfDiffDefs = len(r2.data)
-        for j in range(numOfDiffDefs):
 
-            if r2.data[j].slug == word:
-                numOfEngDef = len(r2.data[j].senses)
-                definitions = []
-                for k in range(numOfEngDef):
-                    definitions = definitions + r2.data[j].senses[k].english_definitions
-
-                jpToEngDict[word] = definitions
-
-                break
+    jpToEngDict = getJpEngDef(jpToEngDict)
 
 
 
-            else: #if no match found, take the first diffDef
-                numOfEngDef = len(r2.data[0].senses)
-                definitions = []
-                for k in range(numOfEngDef):
-                    definitions = definitions + r2.data[0].senses[k].english_definitions
 
-                jpToEngDict[word] = definitions
+    end = time.time()
 
-    # print(json.dumps(jpToEngDict))
+    total_time = end - start
+
+    print(f"Time it took in seconds: {total_time}")
 
 
     #trim unnecessary words
@@ -65,6 +104,8 @@ def getDefinitions(text):
             jpToEngDict[item][i] = jpToEngDict[item][i].replace('to be ', '')
             jpToEngDict[item][i] = jpToEngDict[item][i].replace('to ', '')
         # print(jpToEngDict[item])
+
+    print(json.dumps(jpToEngDict))
 
     return jpToEngDict
 
@@ -90,11 +131,31 @@ def getRawScoreFromJapaneseText(textToTranslate, translatedText):
 
 
 
+
+
+
+
+
+
+
+
+
+
+
 def getRootWord(word):
 
-    body = requests.get('https://api.dictionaryapi.dev/api/v2/entries/en/hello')
-    data = json.loads(body.text)
-    print(data)
+    # body = requests.get('https://api.dictionaryapi.dev/api/v2/entries/en/hello')
+    # data = json.loads(body.text)
+    # print(data)
+
+    pass
+
+
+
+
+
+
+
 
 
 
@@ -103,7 +164,7 @@ def getRootWord(word):
 def getJapaneseTargets(textToTranslate, translatedText):
 
     definitions = getDefinitions(textToTranslate)
-    print(json.dumps(definitions))    
+    # print(json.dumps(definitions))    
 
 
     """Matching Japanese target words with the translator's words"""
@@ -128,7 +189,7 @@ def getJapaneseTargets(textToTranslate, translatedText):
                         textToTranslateTargets[definition] = multiWord
                         numOfTranslatedTextTargets[singleRefWord] -= 1 # the translator has used one Eng word
 
-    print(textToTranslateTargets)
+    # print(textToTranslateTargets)
 
     return textToTranslateTargets
 
@@ -215,7 +276,7 @@ def translation():
 
     ### TO BE REFACTORED ###
     rawScore = getRawScoreFromJapaneseText(content['textToTranslate'], content['translatedText'])
-    print(rawScore)
+    # print(rawScore)
 
 
 
