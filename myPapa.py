@@ -55,14 +55,7 @@ def getDefinitions(text):
 
                 jpToEngDict[word] = definitions
 
-    print(json.dumps(jpToEngDict))
-
-
-        
-
-
-
-
+    # print(json.dumps(jpToEngDict))
 
 
     #trim unnecessary words
@@ -74,6 +67,117 @@ def getDefinitions(text):
         # print(jpToEngDict[item])
 
     return jpToEngDict
+
+
+
+
+
+
+def getRawScoreFromJapaneseText(textToTranslate, translatedText):
+
+    textToTranslateTargets = getJapaneseTargets(textToTranslate, translatedText)
+
+    maxScore = -1 if len(textToTranslateTargets) == 0 else len(textToTranslateTargets)
+    score = 0
+
+    for wordToScore in textToTranslateTargets:
+        if textToTranslateTargets[wordToScore]:
+            score += 1
+
+    totalScore = int((score/maxScore)*100)
+
+    return totalScore
+
+
+
+def getRootWord(word):
+
+    body = requests.get('https://api.dictionaryapi.dev/api/v2/entries/en/hello')
+    data = json.loads(body.text)
+    print(data)
+
+
+
+    
+
+def getJapaneseTargets(textToTranslate, translatedText):
+
+    definitions = getDefinitions(textToTranslate)
+    print(json.dumps(definitions))    
+
+
+    """Matching Japanese target words with the translator's words"""
+    textToTranslateTargets = {}
+    textToTranslateTokens = [token for token in definitions]
+    for tok in textToTranslateTokens:
+        if tok not in textToTranslateTargets:
+            textToTranslateTargets[tok] = None
+
+    numOfTranslatedTextTargets = {}
+    translatedTextTokens = translatedText.split()
+    for singleRefWord in translatedTextTokens:
+        if singleRefWord not in numOfTranslatedTextTargets:
+            numOfTranslatedTextTargets[singleRefWord] = 0 #init
+        numOfTranslatedTextTargets[singleRefWord] += 1
+
+        for definition in definitions:
+            engWordsList = definitions[definition]
+            for multiWord in engWordsList:
+                if singleRefWord.lower() in multiWord.lower().split()[0]:
+                    if numOfTranslatedTextTargets[singleRefWord] > 0:
+                        textToTranslateTargets[definition] = multiWord
+                        numOfTranslatedTextTargets[singleRefWord] -= 1 # the translator has used one Eng word
+
+    print(textToTranslateTargets)
+
+    return textToTranslateTargets
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+def getScore(suggestedOrGeneratedTranslationText, translatedText):
+
+    translationFromTokens = suggestedOrGeneratedTranslationText.split()
+    translationDict = {}
+    for word in translationFromTokens:
+        if word not in translationDict:
+            translationDict[word] = 0
+        translationDict[word] += 1
+
+    translatedTextTokens = translatedText.split()
+
+    for translatorWord in translatedTextTokens:
+        if translatorWord in translationDict:
+            if translationDict[translatorWord] > 0:
+                translationDict[translatorWord] -= 1
+
+    score = 0
+    maxScore = -1 if len(translationDict) == 0 else len(translationDict)
+
+    for word in translationDict:
+        if translationDict[word] == 0:
+            score += 1
+
+    return int((score/maxScore)*100)
+
+
+
+
+
 
 
 
@@ -105,153 +209,21 @@ def translation():
 
 
     data = json.loads(body.text)
-    result = { "suggestedTranslation": data['message']['result']['translatedText'] }
     content["suggestedTranslationFromPapago"] = data['message']['result']['translatedText']
 
+    result = { "suggestedTranslation": data['message']['result']['translatedText'] }
 
-    definitions = getDefinitions(content['textToTranslate'])
-    # print(json.dumps(definitions))    
+    ### TO BE REFACTORED ###
+    rawScore = getRawScoreFromJapaneseText(content['textToTranslate'], content['translatedText'])
+    print(rawScore)
 
 
-    """Matching Japanese target words with the translator's words"""
-    textToTranslateTargets = {}
-    textToTranslateTokens = [token for token in definitions]
-    for tok in textToTranslateTokens:
-        if tok not in textToTranslateTargets:
-            textToTranslateTargets[tok] = None
 
-    numOfTranslatedTextTargets = {}
-    translatedTextTokens = content['translatedText'].split()
-    for singleRefWord in translatedTextTokens:
-        if singleRefWord not in numOfTranslatedTextTargets:
-            numOfTranslatedTextTargets[singleRefWord] = 0 #init
-        numOfTranslatedTextTargets[singleRefWord] += 1
+    papagoScore = getScore(content['suggestedTranslationFromPapago'], content['translatedText'])
+    wanikaniScore = getScore(content['generatedTextEngVerFromWanikani'], content['translatedText'])
+    finalScore = max(papagoScore, wanikaniScore)
 
-        for definition in definitions:
-            EngWordsList = definitions[definition]
-            for multiWord in EngWordsList:
-                if singleRefWord.lower() in multiWord.lower().split():
-                    if numOfTranslatedTextTargets[singleRefWord] > 0:
-                        textToTranslateTargets[definition] = multiWord
-                        numOfTranslatedTextTargets[singleRefWord] -= 1 # the translator has used one Eng word
-
-    # print(textToTranslateTargets)
-
-    maxScore = len(textToTranslateTargets)
-    score = 0
-
-    for wordToScore in textToTranslateTargets:
-        if textToTranslateTargets[wordToScore]:
-            score += 1
-
-    totalScore = int((score/maxScore)*100)
-
-
-
-
-
-
-
-
-
-    suggestedTranslationFromPapagoTokens = content['suggestedTranslationFromPapago'].split()
-    suggestedTranslationFromPapagoDict = {}
-    for papagoWord in suggestedTranslationFromPapagoTokens:
-        if papagoWord not in suggestedTranslationFromPapagoDict:
-            suggestedTranslationFromPapagoDict[papagoWord] = 0
-        suggestedTranslationFromPapagoDict[papagoWord] += 1
-
-    translatedTextTokens = content['translatedText'].split()
-
-    for translatorWord in translatedTextTokens:
-        if translatorWord in suggestedTranslationFromPapagoDict:
-            if suggestedTranslationFromPapagoDict[translatorWord] > 0:
-                suggestedTranslationFromPapagoDict[translatorWord] -= 1
-
-    papagoScore = 0
-    papagoMaxScore = len(suggestedTranslationFromPapagoTokens)
-
-    for papagoWord in suggestedTranslationFromPapagoDict:
-        if suggestedTranslationFromPapagoDict[papagoWord] == 0:
-            papagoScore += 1
-
-    papagoTotalScore = int((papagoScore/papagoMaxScore)*100)
-
-
-
-
-
-
-
-
-
-    generatedTextEngVerFromWanikaniTokens = content['generatedTextEngVerFromWanikani'].split()
-    generatedTextEngVerFromWanikaniDict = {}
-    for papagoWord in generatedTextEngVerFromWanikaniTokens:
-        if papagoWord not in generatedTextEngVerFromWanikaniDict:
-            generatedTextEngVerFromWanikaniDict[papagoWord] = 0
-        generatedTextEngVerFromWanikaniDict[papagoWord] += 1
-
-    translatedTextTokens = content['translatedText'].split()
-
-    for translatorWord in translatedTextTokens:
-        if translatorWord in generatedTextEngVerFromWanikaniDict:
-            if generatedTextEngVerFromWanikaniDict[translatorWord] > 0:
-                generatedTextEngVerFromWanikaniDict[translatorWord] -= 1
-
-    wanikaniScore = 0
-    papagoMaxScore = len(generatedTextEngVerFromWanikaniTokens)
-
-    for papagoWord in generatedTextEngVerFromWanikaniDict:
-        if generatedTextEngVerFromWanikaniDict[papagoWord] == 0:
-            wanikaniScore += 1
-
-    wanikaniTotalScore = int((wanikaniScore/papagoMaxScore)*100)
-
-
-
-
-
-
-
-
-
-    # print(f"My Data: {content}")
-    print('\n')
-
-    print(f'YOUR JAPANESE GRADE IS: {totalScore}%')
-    print(f'YOUR PAPAGO GRADE IS: {papagoTotalScore}%')
-    print(f'YOUR WANIKANI GRADE IS: {wanikaniTotalScore}%')
-
-    print('\n')
-    print(f'YOUR OVERALL GRADE IS: {max(totalScore, papagoTotalScore, wanikaniTotalScore)}%')
-    print('\n')
-
-
-
-
-
-
-
-    
-
-
-
-
-
-
-
-
-
-
-
-    
-
-
-
-
-
-
+    result['finalScore'] = finalScore
 
 
 
@@ -278,11 +250,13 @@ def generation():
 
 
 
-        print('object: ', res['object'])
         print('num of iter: ', _)
         print('ranNum: ', ranNum)
 
-        if res['object'] == 'vocabulary':
+        resObject = res['object']
+        print(resObject)
+
+        if resObject == 'vocabulary':
 
             sentencesLen = len(res['data']['context_sentences'])
 
