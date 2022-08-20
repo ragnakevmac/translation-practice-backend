@@ -21,25 +21,25 @@ app = Flask(__name__)
 
 def getEngMeanings(jpToken, tokenRes):
 
+    numOfDiffDefs = len(tokenRes['data'])
 
-    numOfDiffDefs = len(tokenRes.data)
     for j in range(numOfDiffDefs):
 
-        if tokenRes.data[j].slug == jpToken:
-            numOfEngDef = len(tokenRes.data[j].senses)
+        if tokenRes['data'][j]['slug'] == jpToken:
+            numOfEngDef = len(tokenRes['data'][j]['senses'])
             definitions = []
             for k in range(numOfEngDef):
-                definitions = definitions + tokenRes.data[j].senses[k].english_definitions
+                definitions = definitions + tokenRes['data'][j]['senses'][k]['english_definitions']
 
             return definitions
 
 
         else: #if no match found, take the first diffDef
 
-            numOfEngDef = len(tokenRes.data[0].senses)
+            numOfEngDef = len(tokenRes['data'][0]['senses'])
             definitions = []
             for k in range(numOfEngDef):
-                definitions = definitions + tokenRes.data[0].senses[k].english_definitions
+                definitions = definitions + tokenRes['data'][0]['senses'][k]['english_definitions']
 
 
     return definitions
@@ -49,19 +49,56 @@ def getEngMeanings(jpToken, tokenRes):
 
 
 
-def getJpEngDef(jpToEngDict):
 
-    for jpToken in jpToEngDict:
 
-        tokenRes = Word.request(jpToken)
 
-        if tokenRes:
-            jpToEngDict[jpToken] = getEngMeanings(jpToken, tokenRes)
-        else:
-            jpToEngDict[jpToken] = ['***SORRY BUT THIS WORD IS NOT FOUND IN THE DICTIONARY***']
+
+async def getAsyncRes(jpToEngDict):
+
+    results = []
+
+    async with aiohttp.ClientSession() as session:
+
+        jpTokens = []
+
+        async def get_tasks(session):
+            tasks = []
+            for jpToken in jpToEngDict:
+                tasks.append(asyncio.create_task(session.get('https://jisho.org/api/v1/search/words?keyword=' + jpToken)))
+                jpTokens.append(jpToken)
+            return tasks
+
+        tasks = await get_tasks(session)
+
+        responses = await asyncio.gather(*tasks)
+
+
+        for response in responses:
+            results.append(await response.json())
+
+
+        finishedList = []
+
+        print(f'RESULTS LENGTH: {len(results)}')
+        print(f'JP DICT LENGTH: {len(jpToEngDict)}')
+
+        print(f'JP TOKENS: {jpTokens}')
+
+
+
+        for i in range(len(jpTokens)):
+
+            if results[i]['data']:
+
+                jpToEngDict[jpTokens[i]] = getEngMeanings(jpTokens[i], results[i])
+
+            else:
+                jpToEngDict[jpTokens[i]] = ['***SORRY BUT THIS WORD IS NOT FOUND IN THE DICTIONARY***']
 
 
     return jpToEngDict
+
+
 
 
 
@@ -85,7 +122,11 @@ def getDefinitions(text):
             jpToEngDict[word] = [] #init
     
 
-    jpToEngDict = getJpEngDef(jpToEngDict)
+
+    
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    jpToEngDict = asyncio.run(getAsyncRes(jpToEngDict))
+
 
 
 
