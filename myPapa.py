@@ -124,7 +124,7 @@ def getDefinitions(text):
 
 
     
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    # asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     jpToEngDict = asyncio.run(getAsyncRes(jpToEngDict))
 
 
