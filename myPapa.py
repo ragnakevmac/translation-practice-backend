@@ -124,7 +124,7 @@ def getDefinitions(text):
 
 
     
-    # asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     jpToEngDict = asyncio.run(getAsyncRes(jpToEngDict))
 
 
@@ -316,7 +316,7 @@ def translation():
     result = { "suggestedTranslation": data['message']['result']['translatedText'] }
 
     ### TO BE REFACTORED ###
-    rawScore = getRawScoreFromJapaneseText(content['textToTranslate'], content['translatedText'])
+    # rawScore = getRawScoreFromJapaneseText(content['textToTranslate'], content['translatedText'])
     # print(rawScore)
 
 
@@ -338,9 +338,21 @@ def translation():
 @app.route('/generation', methods=['GET'])
 def generation():
 
+    difficultyRange = request.args.getlist('difficultyRange[]')
+
+    difficultyRangeStart = int(difficultyRange[0])
+    difficultyRangeEnd =  int(difficultyRange[1])
+
+    print(difficultyRangeStart)
+    print(difficultyRangeEnd)
+
+
+    queryRange = 9160 - 2467 #6693
+
+
     for _ in range(58):
 
-        ranNum = random.randint(2467, 9160)
+        ranNum = random.randint(2467 + ((queryRange//100) * difficultyRangeStart), 2467 + ((queryRange//100) * difficultyRangeEnd))
 
         WANIKANI_URL = 'https://api.wanikani.com/v2/subjects/' + str(ranNum)
         requestHeaders = { 'Authorization': 'Bearer ' + WANIKANI_API_TOKEN}
