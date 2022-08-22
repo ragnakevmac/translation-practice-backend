@@ -155,15 +155,13 @@ def getDefinitions(text):
 
 
 
-def getRawScoreFromJapaneseText(textToTranslate, translatedText):
+def getRawScoreFromJapaneseText(japaneseTargets):
 
-    textToTranslateTargets = getJapaneseTargets(textToTranslate, translatedText)
-
-    maxScore = -1 if len(textToTranslateTargets) == 0 else len(textToTranslateTargets)
+    maxScore = -1 if len(japaneseTargets) == 0 else len(japaneseTargets)
     score = 0
 
-    for wordToScore in textToTranslateTargets:
-        if textToTranslateTargets[wordToScore]:
+    for wordToScore in japaneseTargets:
+        if japaneseTargets[wordToScore]:
             score += 1
 
     totalScore = int((score/maxScore)*100)
@@ -202,9 +200,8 @@ def getRootWord(word):
 
     
 
-def getJapaneseTargets(textToTranslate, translatedText):
+def getJapaneseTargets(textToTranslate, translatedText, definitions):
 
-    definitions = getDefinitions(textToTranslate)
     # print(json.dumps(definitions))    
 
 
@@ -230,7 +227,7 @@ def getJapaneseTargets(textToTranslate, translatedText):
                         textToTranslateTargets[definition] = multiWord
                         numOfTranslatedTextTargets[singleRefWord] -= 1 # the translator has used one Eng word
 
-    # print(textToTranslateTargets)
+    print(textToTranslateTargets)
 
     return textToTranslateTargets
 
@@ -315,11 +312,6 @@ def translation():
 
     result = { "suggestedTranslation": data['message']['result']['translatedText'] }
 
-    ### TO BE REFACTORED ###
-    # rawScore = getRawScoreFromJapaneseText(content['textToTranslate'], content['translatedText'])
-    # print(rawScore)
-
-
 
     papagoScore = getScore(content['suggestedTranslationFromPapago'], content['translatedText'])
     wanikaniScore = getScore(content['generatedTextEngVerFromWanikani'], content['translatedText'])
@@ -343,8 +335,8 @@ def generation():
     difficultyRangeStart = int(difficultyRange[0])
     difficultyRangeEnd =  int(difficultyRange[1])
 
-    print(difficultyRangeStart)
-    print(difficultyRangeEnd)
+    # print(difficultyRangeStart)
+    # print(difficultyRangeEnd)
 
 
     queryRange = 9160 - 2467 #6693
@@ -364,11 +356,11 @@ def generation():
 
 
 
-        print('num of iter: ', _)
-        print('ranNum: ', ranNum)
+        # print('num of iter: ', _)
+        # print('ranNum: ', ranNum)
 
         resObject = res['object']
-        print(resObject)
+        # print(resObject)
 
         if resObject == 'vocabulary':
 
@@ -376,13 +368,54 @@ def generation():
 
             if sentencesLen > 0:
 
-                print('sentencesLen: ', sentencesLen)
+                # print('sentencesLen: ', sentencesLen)
 
                 result = jsonify(res['data']['context_sentences'][random.randint(0, sentencesLen-1)])
 
                 return (result, 200)
 
     return ({"error": "Please try again after one minute."}, 404) #if all 58 iterations fail
+
+
+
+
+
+
+
+
+@app.route('/japanese-data', methods=['POST'])
+def japaneseData():
+
+
+    content = request.get_json()
+    # print(content)
+
+    engDefinitions = getDefinitions(content['textToTranslate'])
+    # print(f'engDefinitions: {engDefinitions}')
+
+
+    japaneseTargets = getJapaneseTargets(content['textToTranslate'], content['translatedText'], engDefinitions)
+    # print(f'japaneseTargets: {japaneseTargets}')
+
+    japaneseRawScore = getRawScoreFromJapaneseText(japaneseTargets)
+    # print(f'japaneseRawScore: {japaneseRawScore}')
+
+
+    content['engDefinitions'] = engDefinitions
+    content['japaneseTargets'] = japaneseTargets
+    content['japaneseRawScore'] = japaneseRawScore
+
+
+    return (jsonify(content), 201)
+
+
+
+
+
+
+
+
+
 
 
 
