@@ -74,7 +74,13 @@ async def getAsyncRes(jpToEngDict):
 
 
         for response in responses:
-            results.append(await response.json())
+            # results.append(await response.json())
+
+            # results.append(await response.json(content_type=None))
+
+            data = await response.read()
+            hashrate = json.loads(data)
+            results.append(hashrate)
 
 
         finishedList = []
@@ -93,7 +99,7 @@ async def getAsyncRes(jpToEngDict):
                 jpToEngDict[jpTokens[i]] = getEngMeanings(jpTokens[i], results[i])
 
             else:
-                jpToEngDict[jpTokens[i]] = ['***SORRY BUT THIS WORD IS NOT FOUND IN THE DICTIONARY***']
+                jpToEngDict[jpTokens[i]] = ['*NOT FOUND*']
 
 
     return jpToEngDict
@@ -103,13 +109,11 @@ async def getAsyncRes(jpToEngDict):
 
 
 
-def getDefinitions(text):
+def getDefinitions(text, r):
 
     jpToEngDict = {}
 
     start = time.time()
-
-    r = Tokens.request(text)
 
     numOfTokens = len(r.data)
     
@@ -213,7 +217,7 @@ def getJapaneseTargets(textToTranslate, translatedText, definitions):
             textToTranslateTargets[tok] = None
 
     numOfTranslatedTextTargets = {}
-    translatedTextTokens = translatedText.split()
+    translatedTextTokens = translatedText.replace(",", "").replace(".", "").replace("?", "").replace("!", "").split()
     for singleRefWord in translatedTextTokens:
         if singleRefWord not in numOfTranslatedTextTargets:
             numOfTranslatedTextTargets[singleRefWord] = 0 #init
@@ -309,20 +313,41 @@ def translation():
 
     data = json.loads(body.text)
     content["suggestedTranslationFromPapago"] = data['message']['result']['translatedText']
-
-    result = { "suggestedTranslation": data['message']['result']['translatedText'] }
+    content["suggestedTranslation"] = data['message']['result']['translatedText']
 
 
     papagoScore = getScore(content['suggestedTranslationFromPapago'], content['translatedText'])
     wanikaniScore = getScore(content['generatedTextEngVerFromWanikani'], content['translatedText'])
     finalScore = max(papagoScore, wanikaniScore)
 
-    result['finalScore'] = finalScore
+    content['finalScore'] = finalScore
+
+
+
+    suggestedTranslationBoolsArray = []
+
+    suggestedTranslationArray = content['suggestedTranslation'].split() if content['generatedTextEngVerFromWanikani'] == '' else content['generatedTextEngVerFromWanikani'].split()
+    print(f"suggestedTranslationArray: {suggestedTranslationArray}")
+    translatedTextArray = content['translatedText'].split()
+
+    for elem in suggestedTranslationArray:
+        if elem in translatedTextArray:
+            suggestedTranslationBoolsArray.append(True)
+        else:
+            suggestedTranslationBoolsArray.append(False)
+
+    content['suggestedTranslationBoolsArray'] = suggestedTranslationBoolsArray
+    content['translatedTextArray'] = translatedTextArray
+    content['suggestedTranslationArray'] = suggestedTranslationArray
+
+    print(f"content['suggestedTranslationBoolsArray']: {content['suggestedTranslationBoolsArray']}")
+
+    print(f"CONTENT: {content}")
 
 
 
 
-    return (jsonify(result), 201)
+    return (jsonify(content), 201)
 
 
 
@@ -390,7 +415,25 @@ def japaneseData():
     content = request.get_json()
     # print(content)
 
-    engDefinitions = getDefinitions(content['textToTranslate'])
+
+
+    r = Tokens.request(content['textToTranslate'])
+
+    numOfTokens = len(r.data)
+    tokenizedJapaneseSentenceArray = []
+
+    for i in range(numOfTokens):
+        word = r.data[i].token
+        if word == '。' or word == '、' or word == '？' or word == '！':
+            continue
+        tokenizedJapaneseSentenceArray.append(word)
+
+    print(f"tokenizedJapaneseSentenceArray: {tokenizedJapaneseSentenceArray}")
+
+
+
+
+    engDefinitions = getDefinitions(content['textToTranslate'], r)
     # print(f'engDefinitions: {engDefinitions}')
 
 
@@ -401,9 +444,13 @@ def japaneseData():
     # print(f'japaneseRawScore: {japaneseRawScore}')
 
 
+
+
     content['engDefinitions'] = engDefinitions
     content['japaneseTargets'] = japaneseTargets
     content['japaneseRawScore'] = japaneseRawScore
+    content['tokenizedJapaneseSentenceArray'] = tokenizedJapaneseSentenceArray
+
 
 
     return (jsonify(content), 201)
