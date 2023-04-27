@@ -5,16 +5,170 @@ import random
 import time
 import asyncio
 import aiohttp
+from concurrent.futures import ThreadPoolExecutor
 from jisho_api.tokenize import Tokens
 from jisho_api.word import Word
+import os
+import openai
 from credentials import (
     PAPAGO_CLIENT_ID, 
     PAPAGO_CLIENT_SECRET, 
-    WANIKANI_API_TOKEN
+    WANIKANI_API_TOKEN,
+    OPENAI_API_KEY
 )
+openai.api_key = OPENAI_API_KEY
 
 
 app = Flask(__name__)
+
+
+
+
+def fetch_data(url):
+    response = requests.get(url)
+    return response.json()
+
+def fetch_papago_data(url, headers, payload):
+    response = requests.post(url, headers=headers, data=payload)
+    return response.json()
+
+def fetch_openai_data(openai_prompt):
+    # Call the OpenAI API with the provided prompt
+    response = openai.Completion.create(
+        model="text-davinci-003",
+        prompt=openai_prompt,
+        temperature=0.7,
+        max_tokens=2048,
+        top_p=1,
+        frequency_penalty=0,
+        presence_penalty=0
+    )
+    return response
+
+def fetch_all_data(urls, openai_prompt, papago_headers=None, papago_payload=None):
+    with ThreadPoolExecutor() as executor:
+        tasks = [executor.submit(fetch_data, url) for url in urls[:-1]]
+        tasks.append(executor.submit(fetch_papago_data, urls[-1], papago_headers, papago_payload))
+        tasks.append(executor.submit(fetch_openai_data, openai_prompt))
+
+        results = [task.result() for task in tasks]
+        return results
+
+
+
+
+
+
+@app.route('/translation', methods=['POST'])
+def translation():
+
+
+
+
+
+
+
+
+    PAPAGO_API_URL = 'https://openapi.naver.com/v1/papago/n2mt'
+    DEFAULT_CONTENT_TYPE = 'application/x-www-form-urlencoded; charset=UTF-8'
+    SOURCE_LANG = 'ja'
+    TARGET_LANG = 'en'
+
+    content = request.get_json()
+    # print(f"My Data: {content}")
+
+    papago_payload = {
+        'text': content['textToTranslate'], 
+        'source': SOURCE_LANG, 
+        'target': TARGET_LANG
+    }
+
+    papago_headers = {
+        'X-Naver-Client-Id': PAPAGO_CLIENT_ID,
+        'X-Naver-Client-Secret': PAPAGO_CLIENT_SECRET,
+        'Content-Type': DEFAULT_CONTENT_TYPE
+    }
+
+
+    urls = [PAPAGO_API_URL]
+    openai_prompt = """I'm trying to practice translating Japanese sentences into English. 
+#             Using the source text, rate and give me an analysis and evaluation on my attempt. 
+#             Be critical of the nuances of the Japanese words used. \n\n
+#             Source text: 人生は挑戦の連続ですが、困難な状況から学びを見つけることが重要です\n\n
+#             My attempt: Life has a series of problems, but the learning from the toughest situations is important.\n\n
+#             Analysis: """
+    data = fetch_all_data(urls, openai_prompt, papago_headers, papago_payload)
+
+
+    print("THIS IS THE DATAAAAAAAAAAAAAAA", data)
+
+
+
+
+
+
+
+
+    content["suggestedTranslationFromPapago"] = data['message']['result']['translatedText']
+    content["suggestedTranslation"] = data['message']['result']['translatedText']
+
+
+    # papagoScore = getScore(content['suggestedTranslationFromPapago'], content['translatedText'])
+    # wanikaniScore = getScore(content['generatedTextEngVerFromWanikani'], content['translatedText'])
+    # finalScore = max(papagoScore, wanikaniScore)
+
+    # content['finalScore'] = finalScore
+
+
+
+    suggestedTranslationBoolsArray = []
+
+    suggestedTranslationArray = content['suggestedTranslation'].split() if content['generatedTextEngVerFromWanikani'] == '' else content['generatedTextEngVerFromWanikani'].split()
+    print(f"suggestedTranslationArray: {suggestedTranslationArray}")
+    translatedTextArray = content['translatedText'].split()
+
+    for elem in suggestedTranslationArray:
+        if elem in translatedTextArray:
+            suggestedTranslationBoolsArray.append(True)
+        else:
+            suggestedTranslationBoolsArray.append(False)
+
+    content['suggestedTranslationBoolsArray'] = suggestedTranslationBoolsArray
+    content['translatedTextArray'] = translatedTextArray
+    content['suggestedTranslationArray'] = suggestedTranslationArray
+
+    print(f"content['suggestedTranslationBoolsArray']: {content['suggestedTranslationBoolsArray']}")
+
+    print(f"CONTENT: {content}")
+
+
+
+
+    return (jsonify(content), 201)
+
+
+
+
+# response = openai.Completion.create(
+#   model="text-davinci-003",
+#   prompt="""I'm trying to practice translating Japanese sentences into English. 
+#             Using the source text, rate and give me an analysis and evaluation on my attempt. 
+#             Be critical of the nuances of the Japanese words used. \n\n
+#             Source text: 人生は挑戦の連続ですが、困難な状況から学びを見つけることが重要です\n\n
+#             My attempt: Life has a series of problems, but the learning from the toughest situations is important.\n\n
+#             Analysis: """,
+#   temperature=0.7,
+#   max_tokens=2048,
+#   top_p=1,
+#   frequency_penalty=0,
+#   presence_penalty=0
+# )
+
+# print(response['choices'][0]['text'])
+
+
+
+
 
 
 
@@ -285,69 +439,8 @@ def getScore(suggestedOrGeneratedTranslationText, translatedText):
 
 
 
-@app.route('/translation', methods=['POST'])
-def translation():
-
-    PAPAGO_API_URL = 'https://openapi.naver.com/v1/papago/n2mt'
-    DEFAULT_CONTENT_TYPE = 'application/x-www-form-urlencoded; charset=UTF-8'
-    SOURCE_LANG = 'ja'
-    TARGET_LANG = 'en'
-
-    content = request.get_json()
-    # print(f"My Data: {content}")
-
-    payload = {
-        'text': content['textToTranslate'], 
-        'source': SOURCE_LANG, 
-        'target': TARGET_LANG
-    }
-
-    headers = {
-        'X-Naver-Client-Id': PAPAGO_CLIENT_ID,
-        'X-Naver-Client-Secret': PAPAGO_CLIENT_SECRET,
-        'Content-Type': DEFAULT_CONTENT_TYPE
-    }
-
-    body = requests.post(PAPAGO_API_URL, headers=headers, data=payload)
 
 
-    data = json.loads(body.text)
-    content["suggestedTranslationFromPapago"] = data['message']['result']['translatedText']
-    content["suggestedTranslation"] = data['message']['result']['translatedText']
-
-
-    papagoScore = getScore(content['suggestedTranslationFromPapago'], content['translatedText'])
-    wanikaniScore = getScore(content['generatedTextEngVerFromWanikani'], content['translatedText'])
-    finalScore = max(papagoScore, wanikaniScore)
-
-    content['finalScore'] = finalScore
-
-
-
-    suggestedTranslationBoolsArray = []
-
-    suggestedTranslationArray = content['suggestedTranslation'].split() if content['generatedTextEngVerFromWanikani'] == '' else content['generatedTextEngVerFromWanikani'].split()
-    print(f"suggestedTranslationArray: {suggestedTranslationArray}")
-    translatedTextArray = content['translatedText'].split()
-
-    for elem in suggestedTranslationArray:
-        if elem in translatedTextArray:
-            suggestedTranslationBoolsArray.append(True)
-        else:
-            suggestedTranslationBoolsArray.append(False)
-
-    content['suggestedTranslationBoolsArray'] = suggestedTranslationBoolsArray
-    content['translatedTextArray'] = translatedTextArray
-    content['suggestedTranslationArray'] = suggestedTranslationArray
-
-    print(f"content['suggestedTranslationBoolsArray']: {content['suggestedTranslationBoolsArray']}")
-
-    print(f"CONTENT: {content}")
-
-
-
-
-    return (jsonify(content), 201)
 
 
 
