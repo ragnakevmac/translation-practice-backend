@@ -55,17 +55,44 @@ def fetch_all_data(urls, openai_prompt, papago_headers=None, papago_payload=None
         return results
 
 
+@app.route('/analysis', methods=['POST'])
+def analysis():
+
+    content = request.get_json()
+
+    source_text = content['textToTranslate']
+    if content['generatedTextEngVerFromWanikani']:
+        source_text = content['generatedTextEngVerFromWanikani']
+
+
+    openai_prompt = """I'm trying to practice translating Japanese sentences into English. 
+                        Using the source text, rate and give me an analysis and evaluation on my translation attempt. 
+                        Be critical of the nuances of the Japanese words and the English words I used. \n\n
+                        Source text: {}\n\n
+                        My attempt: {}\n\n
+                        Analysis: """.format(source_text, content['translatedText'])
+    
+
+    response = openai.Completion.create(
+        model="text-davinci-003",
+        prompt=openai_prompt,
+        temperature=0.7,
+        max_tokens=2000,
+        top_p=1,
+        frequency_penalty=0,
+        presence_penalty=0
+    )
+
+    content['attemptAnalysis'] = response['choices'][0]['text']
+
+    return (jsonify(content), 201)
 
 
 
 
-@app.route('/translation', methods=['POST'])
-def translation():
 
-
-
-
-
+@app.route('/analysis2', methods=['POST'])
+def analysis2():
 
 
 
@@ -165,6 +192,83 @@ def translation():
 # )
 
 # print(response['choices'][0]['text'])
+
+
+
+
+
+
+@app.route('/translation', methods=['POST'])
+def translation():
+
+    PAPAGO_API_URL = 'https://openapi.naver.com/v1/papago/n2mt'
+    DEFAULT_CONTENT_TYPE = 'application/x-www-form-urlencoded; charset=UTF-8'
+    SOURCE_LANG = 'ja'
+    TARGET_LANG = 'en'
+
+    content = request.get_json()
+    # print(f"My Data: {content}")
+
+    payload = {
+        'text': content['textToTranslate'], 
+        'source': SOURCE_LANG, 
+        'target': TARGET_LANG
+    }
+
+    headers = {
+        'X-Naver-Client-Id': PAPAGO_CLIENT_ID,
+        'X-Naver-Client-Secret': PAPAGO_CLIENT_SECRET,
+        'Content-Type': DEFAULT_CONTENT_TYPE
+    }
+
+    body = requests.post(PAPAGO_API_URL, headers=headers, data=payload)
+
+
+    data = json.loads(body.text)
+    content["suggestedTranslationFromPapago"] = data['message']['result']['translatedText']
+    content["suggestedTranslation"] = data['message']['result']['translatedText']
+
+
+    papagoScore = getScore(content['suggestedTranslationFromPapago'], content['translatedText'])
+    wanikaniScore = getScore(content['generatedTextEngVerFromWanikani'], content['translatedText'])
+    finalScore = max(papagoScore, wanikaniScore)
+
+    content['finalScore'] = finalScore
+
+
+
+    suggestedTranslationBoolsArray = []
+
+    suggestedTranslationArray = content['suggestedTranslation'].split() if content['generatedTextEngVerFromWanikani'] == '' else content['generatedTextEngVerFromWanikani'].split()
+    print(f"suggestedTranslationArray: {suggestedTranslationArray}")
+    translatedTextArray = content['translatedText'].split()
+
+    for elem in suggestedTranslationArray:
+        if elem in translatedTextArray:
+            suggestedTranslationBoolsArray.append(True)
+        else:
+            suggestedTranslationBoolsArray.append(False)
+
+    content['suggestedTranslationBoolsArray'] = suggestedTranslationBoolsArray
+    content['translatedTextArray'] = translatedTextArray
+    content['suggestedTranslationArray'] = suggestedTranslationArray
+
+    print(f"content['suggestedTranslationBoolsArray']: {content['suggestedTranslationBoolsArray']}")
+
+    print(f"CONTENT: {content}")
+
+
+
+
+    return (jsonify(content), 201)
+
+
+
+
+
+
+
+
 
 
 
