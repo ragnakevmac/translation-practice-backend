@@ -55,6 +55,64 @@ def fetch_all_data(urls, openai_prompt, papago_headers=None, papago_payload=None
         return results
 
 
+
+@app.route('/hint', methods=['POST'])
+def hint():
+
+    content = request.get_json()
+
+    source_text = content['textToTranslate']
+    if content['generatedTextEngVerFromWanikani']:
+        source_text = content['generatedTextEngVerFromWanikani']
+
+
+    messages = [
+        {"role": "system", "content": """You are a helpful tutor trying to help me who's trying to practice translating Japanese sentences into English. You will give me hints but will not give out the whole answer. Keep giving hints until I finish my attempt sentence."""},
+        {"role": "user", "content": """
+            Using the source text and my incomplete attempt, help me and give me some advice on what word to write next. Write the Japanese word I'm missing which is equivalent to the English word not present in my attempt.
+            Source text: 最近、学校では、英語の授業で文法を学んでいるけど、落ち込んでいる時もあって、それを乗り越えるために、今日は友達と一緒に日本語を学ぶことにしました。
+            My attempt: Recently we've been learning English grammar at school, but 
+            Hint: """},
+        {"role": "assistant", "content": """the missing word is a verb in past tense that means "there are times when I feel down"."""},
+        {"role": "user", "content": """
+            I need another hint.
+            My attempt: Recently we've been learning English grammar at school, but there are times when I feel down
+            Hint: """},
+        {"role": "assistant", "content": """The missing word is a conjunction that means "but"."""},
+        {"role": "user", "content": """
+            I need another hint.
+            My attempt: Recently we've been learning English grammar at school, but there are times when I feel down but
+            Hint: """},
+        {"role": "assistant", "content": """The missing word is a phrase that means "in order to overcome that"."""},
+        {"role": "user", "content": """
+            I need another hint.
+            My attempt: Recently we've been learning English grammar at school, but there are times when I feel down but in order to overcome that
+            Hint: """},
+        {"role": "assistant", "content": """The missing word is a phrase that means "The missing word is a phrase that means "today, I decided to study Japanese together with a friend"."""},
+        {"role": "user", "content": """
+            I need another hint.
+            My attempt: Recently we've been learning English grammar at school, but there are times when I feel down but in order to overcome that today, I decided to study Japanese together with a friend
+            Hint: """},
+        {"role": "assistant", "content": """The missing word is a phrase that means "Your attempt looks complete. Good job!"""},
+        {"role": "user", "content": """Okay here's a new one."""},
+        {"role": "assistant", "content": """Sure, I'm ready to help. Please provide me with the source text and your incomplete attempt."""},
+        {"role": "user", "content": """Source text: {} \n\n
+            Incomplete attempt: {} \n\n
+            Hint: """.format(source_text, content['translatedText'])}
+    ]
+
+    response = openai.ChatCompletion.create(
+        messages=messages,
+        model="gpt-3.5-turbo",
+        max_tokens=1500,
+    )
+
+    content['hint'] = response['choices'][0]['message']['content']
+    print(content['hint'])
+    return (jsonify(content), 201)
+
+
+
 @app.route('/analysis', methods=['POST'])
 def analysis():
 
@@ -240,7 +298,7 @@ def translation():
     suggestedTranslationBoolsArray = []
 
     suggestedTranslationArray = content['suggestedTranslation'].split() if content['generatedTextEngVerFromWanikani'] == '' else content['generatedTextEngVerFromWanikani'].split()
-    print(f"suggestedTranslationArray: {suggestedTranslationArray}")
+    # print(f"suggestedTranslationArray: {suggestedTranslationArray}")
     translatedTextArray = content['translatedText'].split()
 
     for elem in suggestedTranslationArray:
@@ -253,9 +311,9 @@ def translation():
     content['translatedTextArray'] = translatedTextArray
     content['suggestedTranslationArray'] = suggestedTranslationArray
 
-    print(f"content['suggestedTranslationBoolsArray']: {content['suggestedTranslationBoolsArray']}")
+    # print(f"content['suggestedTranslationBoolsArray']: {content['suggestedTranslationBoolsArray']}")
 
-    print(f"CONTENT: {content}")
+    # print(f"CONTENT: {content}")
 
 
 
