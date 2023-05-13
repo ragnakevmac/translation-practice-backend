@@ -10,6 +10,8 @@ from jisho_api.tokenize import Tokens
 from jisho_api.word import Word
 import os
 import openai
+from openai.error import RateLimitError
+import re
 from credentials import (
     PAPAGO_CLIENT_ID, 
     PAPAGO_CLIENT_SECRET, 
@@ -20,6 +22,155 @@ openai.api_key = OPENAI_API_KEY
 
 
 app = Flask(__name__)
+
+
+@app.route('/tokenize', methods=['POST'])
+def tokenize():
+    content = request.get_json()
+    source = content['textToTranslate']
+    print("SOURCE", source)
+
+
+    r = Tokens.request(source)
+    
+    numOfTokens = len(r.data)
+    tokenizedArray = []
+    for i in range(numOfTokens):
+        word = r.data[i].token
+        tokenizedArray.append(word)
+
+    content["tokenizedArray"] = tokenizedArray
+
+    print("TOKENIZED ARRAY", content["tokenizedArray"])
+
+    return (jsonify(content), 201)
+
+
+
+
+
+def extract_json(s):
+    match = re.search(r'\{.*\}', s)
+    if match:
+        return match.group()
+    else:
+        return ''
+
+
+
+@app.route('/reading', methods=['POST'])
+def reading():
+
+    content = request.get_json()
+
+    word = content['wordClicked']
+    context = content['textToTranslate']
+
+    messages = [
+        {"role": "system", "content": """You are an expert at reading Japanese. Your role is to only give me the Furigana reading and the meaning of the Japanese word that I will provide."""},
+        {"role": "user", "content": """How do you read the word""" + word + """in Japanese? 
+        Strictly return in your response only a JSON object in a format like this: {”食べる": "たべる - to eat"}. Do not add anything before or after the curly braces!
+        And if the word I provided are all in Hiragana, then just return "reading - meaning" for the furigana value like this: {”です": "です - to be"}
+        And if you don't know how to provide the furigana reading, then also just return the furigana value like this: {”。": "。 - period"}
+        And if the word is conjugated like "飲み過ぎちゃった", then try your best and return it like this: {”飲み過ぎちゃった": "のみすぎちゃった - drank too much"} instead of {'飲み過ぎちゃった': 'のみすぎる - to drink too much'}.
+        Pay attention to the context when generating the meaning. If there are several meanings, then just return the most appropriate meaning depending on the context.
+        For example, for the sentence "やばい、これ美味しい！", the meaning should be "amazing" and not "dangerous" because the context is positive.
+        Refer to this context: """ + context },
+    ]
+
+    # messages = [
+    #     {"role": "system", "content": """You are an expert at reading Japanese. Your role is to only give me the Furigana reading of the Japanese word that I will provide."""},
+    #     {"role": "user", "content": """How do you read the word""" + word + """in Japanese? 
+    #     Strictly return in your response only a JSON object in a format like this: {”食べる": "たべる - to eat"}
+    #     And if the word I provided are all in Hiragana, then just return "reading - meaning" for the furigana value like this: {”です": "です - to be"}
+    #     And if you don't know how to provide the furigana reading, then just return an empty string for the furigana value like this: {”。": "。 - period"}
+    #     Pay attention to the context when generating the meaning. If there are severl meanings, then just return the most appropriate meaning depending on the context.
+    #     For example, for the sentence "やばい、これ美味しい！", the meaning should be "amazing" and not "dangerous" because the context is positive.
+    #     Context:""" + context },
+    # ]
+
+
+
+    def make_request_with_retry():
+        max_retries = 5
+        base_wait_time = 1 # 1 second
+
+        for retry_attempt in range(max_retries):
+            try:
+                # Replace this line with your actual API call
+                response = openai.ChatCompletion.create(
+                    messages=messages,
+                    model="gpt-3.5-turbo",
+                    max_tokens=1500,
+                    temperature=0.1,
+                )
+                return response
+            except RateLimitError as e:
+                wait_time = base_wait_time * (2 ** retry_attempt)
+                print(f"RateLimitError encountered. Waiting {wait_time} seconds before retrying...")
+                time.sleep(wait_time)
+        else:
+            print("Max retries reached. The request has failed.")
+            return None
+
+    start = time.time()
+    response = make_request_with_retry()
+    end = time.time()
+    total_time = end - start
+    print(f"LOADING TIME: {total_time}")
+
+    if response:
+
+        print("Raw Response: ", response['choices'][0]['message']['content'])
+
+        s = response['choices'][0]['message']['content']
+        cleaned_s = extract_json(s)
+
+        obj_response = json.loads(cleaned_s)
+        print("obj_response", obj_response)
+        print("whole content: ", content)
+        # if not content["reading"]:
+        #     content["reading"] = {}
+
+        # content["reading"] = {**content["reading"], **obj_response}
+        # print("Content of reading: ", content["reading"])
+        content["reading"] = obj_response
+        return (jsonify(content), 201)
+
+
+
+
+
+
+
+# start = time.time()
+
+# # prompt = """What is the meaning of {} in {}""".format(tokenizedJapaneseSentenceArray[4], source)
+# prompt = """What's the reading for the word {}in the context of {}? Only return the reading in Hiragana form.""".format(tokenizedJapaneseSentenceArray[1], source)
+
+# response = openai.Completion.create(
+#     model="text-davinci-003",
+#     prompt= prompt,
+#     temperature=0.7,
+#     max_tokens=3000,
+#     top_p=1,
+#     frequency_penalty=0,
+#     presence_penalty=0
+# )
+
+# end = time.time()
+
+# total_time = end - start
+
+# print(f"LOADING TIME: {total_time}")
+# print(response['choices'][0]['text'])
+
+
+
+
+
+
+
 
 
 
@@ -61,10 +212,6 @@ def hint():
 
     content = request.get_json()
 
-    source_text = content['textToTranslate']
-    if content['generatedTextEngVerFromWanikani']:
-        source_text = content['generatedTextEngVerFromWanikani']
-
 
     messages = [
         {"role": "system", "content": """You are a helpful tutor trying to help me who's trying to practice translating Japanese sentences into English. You will give me hints but will not give out the whole answer. Keep giving hints until I finish my attempt sentence."""},
@@ -98,14 +245,25 @@ def hint():
         {"role": "assistant", "content": """Sure, I'm ready to help. Please provide me with the source text and your incomplete attempt."""},
         {"role": "user", "content": """Source text: {} \n\n
             Incomplete attempt: {} \n\n
-            Hint: """.format(source_text, content['translatedText'])}
+            Hint: """.format(content['textToTranslate'], content['translatedText'])}
     ]
+
+
+    start = time.time()
 
     response = openai.ChatCompletion.create(
         messages=messages,
         model="gpt-3.5-turbo",
         max_tokens=1500,
     )
+
+
+    end = time.time()
+
+    total_time = end - start
+
+    print(f"HINT LOADING TIME: {total_time}")
+
 
     content['hint'] = response['choices'][0]['message']['content']
     print(content['hint'])
@@ -118,18 +276,18 @@ def analysis():
 
     content = request.get_json()
 
-    source_text = content['textToTranslate']
-    if content['generatedTextEngVerFromWanikani']:
-        source_text = content['generatedTextEngVerFromWanikani']
-
 
     openai_prompt = """I'm trying to practice translating Japanese sentences into English. 
                         Using the source text, rate and give me an analysis and evaluation on my translation attempt. 
                         Be critical of the nuances of the Japanese words and the English words I used. \n\n
                         Source text: {}\n\n
                         My attempt: {}\n\n
-                        Analysis: """.format(source_text, content['translatedText'])
+                        Analysis: """.format(content['textToTranslate'], content['translatedText'])
     
+
+
+    start = time.time()
+
 
     response = openai.Completion.create(
         model="text-davinci-003",
@@ -141,7 +299,114 @@ def analysis():
         presence_penalty=0
     )
 
+    end = time.time()
+
+    total_time = end - start
+
+    print(f"ATTEMPT ANALYSIS LOADING TIME: {total_time}")
+
+
+
+
     content['attemptAnalysis'] = response['choices'][0]['text']
+
+    return (jsonify(content), 201)
+
+
+
+
+
+
+
+
+
+
+
+
+
+@app.route('/morphoanalysis', methods=['POST'])
+def morphoanalysis():
+
+    content = request.get_json()
+
+    source_text = content['textToTranslate']
+
+
+
+
+    
+    openai_prompt = """You will return the Furigana and English meaning of the Japanese words from a text that I will provide you. 
+                        Pay attention to the tone and context I gave you when generating the meaning.
+                        When tokenizing, look for more idiomatic expressions or common phrases instead of just breaking down everything to small words and giving out their literal meanings.
+                        When the tokenized word doesn't have any Kanji, just provide an empty string for the furigana.
+                        Also pay attention to the correct reading for the tokenized word like 辺り should have the reading あたり instead of へんり.
+                        The order of the objects should be the same as the order of the Japanese words in the source text.
+
+                        Example source text: この辺りは治安も悪くないけど、あの辺りは治安が良くないからね。
+
+                        I want you to return a JSON object like this: 
+                        [
+                            { "text": "この", "furigana": "", "meaning": "this" }, 
+                            { "text": "辺り", "furigana": "あたり", "meaning": "area" }, 
+                            { "text": "は", "furigana": "", "meaning": "topic marker" }, 
+                            { "text": "治安", "furigana": "ちあん", "meaning": "public order" }, 
+                            { "text": "も", "furigana": "", "meaning": "also" }, 
+                            { "text": "悪くない", "furigana": "わるくない", "meaning": "not bad" }, 
+                            { "text": "けど", "furigana": "", "meaning": "but" }, 
+                            { "text": "、", "furigana": "", "meaning": "comma" }, 
+                            { "text": "あの", "furigana": "", "meaning": "that" }, 
+                            { "text": "辺り", "furigana": "あたり", "meaning": "area" }, 
+                            { "text": "は", "furigana": "", "meaning": "topic marker" }, 
+                            { "text": "治安", "furigana": "ちあん", "meaning": "public order" }, 
+                            { "text": "が", "furigana": "", "meaning": "subject marker" }, 
+                            { "text": "良くない", "furigana": "よくない", "meaning": "not good" }, 
+                            { "text": "から", "furigana": "", "meaning": "because" }, 
+                            { "text": "ね", "furigana": "", "meaning": "confirmation marker" }, 
+                            { "text": "。", "furigana": "", "meaning": "period" }
+                        ]
+
+                        Now this is my source text I want you to parse:""" + source_text + """\n\n
+                        Your JSON return here: """
+    
+
+    start = time.time()
+
+    response = openai.Completion.create(
+        model="text-davinci-003",
+        prompt=openai_prompt,
+        temperature=0.7,
+        max_tokens=3000,
+        top_p=1,
+        frequency_penalty=0,
+        presence_penalty=0
+    )
+
+    end = time.time()
+
+    total_time = end - start
+
+    print(f"MORPHOANALYSYS LOADING TIME: {total_time}")
+
+
+
+
+    print(response['choices'][0]['text'])
+
+    json_string = response['choices'][0]['text']
+
+    # Remove extra formatting
+    json_string = json_string.replace('\n', '').replace('\r', '').replace('\t', '')
+
+    # Remove double quotes around the JSON array
+    json_string = json_string.strip('"')
+
+    # Parse the cleaned JSON string
+    data = json.loads(json_string)
+
+
+    content['morphoAnalysis'] = data
+
+
 
     return (jsonify(content), 201)
 
