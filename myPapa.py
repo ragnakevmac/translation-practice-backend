@@ -4,7 +4,7 @@ import json
 import random
 import time
 import asyncio
-import aiohttp
+# import aiohttp
 from concurrent.futures import ThreadPoolExecutor
 from jisho_api.tokenize import Tokens
 from jisho_api.word import Word
