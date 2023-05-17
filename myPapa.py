@@ -12,13 +12,19 @@ import os
 import openai
 from openai.error import RateLimitError
 import re
-from credentials import (
-    PAPAGO_CLIENT_ID, 
-    PAPAGO_CLIENT_SECRET, 
-    WANIKANI_API_TOKEN,
-    OPENAI_API_KEY
-)
+# from credentials import (
+#     PAPAGO_CLIENT_ID, 
+#     PAPAGO_CLIENT_SECRET, 
+#     WANIKANI_API_TOKEN,
+#     OPENAI_API_KEY
+# )
+
+PAPAGO_CLIENT_ID = os.environ.get('PAPAGO_CLIENT_ID')
+PAPAGO_CLIENT_SECRET = os.environ.get('PAPAGO_CLIENT_SECRET')
+WANIKANI_API_TOKEN = os.environ.get('WANIKANI_API_TOKEN')
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
 openai.api_key = OPENAI_API_KEY
+
 
 
 app = Flask(__name__)
