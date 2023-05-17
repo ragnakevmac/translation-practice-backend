@@ -102,7 +102,7 @@ def reading():
                     messages=messages,
                     model="gpt-3.5-turbo",
                     max_tokens=1500,
-                    temperature=0.1,
+                    temperature=0.9,
                 )
                 return response
             except RateLimitError as e:
