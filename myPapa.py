@@ -29,6 +29,20 @@ openai.api_key = OPENAI_API_KEY
 
 app = Flask(__name__)
 
+@app.route('/', methods=['GET'])
+def main():
+    return """
+    <!doctype html>
+    <html>
+        <head>
+            <title>My Homepage</title>
+        </head>
+        <body>
+            <h1>Hello World!</h1>
+        </body>
+    </html>
+    """
+
 
 @app.route('/tokenize', methods=['POST'])
 def tokenize():
