@@ -12,6 +12,7 @@ import os
 import openai
 from openai.error import RateLimitError
 import re
+from flask_cors import CORS
 # from credentials import (
 #     PAPAGO_CLIENT_ID, 
 #     PAPAGO_CLIENT_SECRET, 
@@ -28,6 +29,8 @@ openai.api_key = OPENAI_API_KEY
 
 
 app = Flask(__name__)
+
+CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
 
 @app.route('/', methods=['GET'])
 def main():
