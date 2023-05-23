@@ -354,18 +354,9 @@ def translation():
     content["suggestedTranslation"] = data['message']['result']['translatedText']
 
 
-    papagoScore = getScore(content['suggestedTranslationFromPapago'], content['translatedText'])
-    wanikaniScore = getScore(content['generatedTextEngVerFromWanikani'], content['translatedText'])
-    finalScore = max(papagoScore, wanikaniScore)
-
-    content['finalScore'] = finalScore
-
-
-
     suggestedTranslationBoolsArray = []
 
     suggestedTranslationArray = content['suggestedTranslation'].split() if content['generatedTextEngVerFromWanikani'] == '' else content['generatedTextEngVerFromWanikani'].split()
-    # print(f"suggestedTranslationArray: {suggestedTranslationArray}")
     translatedTextArray = content['translatedText'].split()
 
     for elem in suggestedTranslationArray:
