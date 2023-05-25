@@ -24,7 +24,7 @@ openai.api_key = OPENAI_API_KEY
 
 app = Flask(__name__)
 
-CORS(app, resources={r"/*": {"origins": ["http://tensaihonyaku.com", "http://www.tensaihonyaku.com"]}})
+CORS(app, resources={r"/*": {"origins": ["http://tensaihonyaku.com", "http://www.tensaihonyaku.com", "https://tensaihonyaku.com", "https://www.tensaihonyaku.com"]}})
 
 
 
