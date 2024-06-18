@@ -33,7 +33,7 @@ CORS(app, resources={r"/*": {"origins": [
     "http://www.tensaihonyaku.com",
     "https://tensaihonyaku.com",
     "https://www.tensaihonyaku.com",
-    # "https://tensaihonyaku.wl.r.appspot.com",
+    "https://tensaihonyaku.wl.r.appspot.com",
 ]}})
 
 # CORS(app, resources={r"/generation*": {"origins": "http://localhost:3000"}})
