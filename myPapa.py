@@ -12,6 +12,9 @@ import openai
 from openai.error import RateLimitError
 import re
 from flask_cors import CORS
+from dotenv import load_dotenv
+
+load_dotenv()  # Load environment variables from .env file
 
 
 PAPAGO_CLIENT_ID = os.environ.get('PAPAGO_CLIENT_ID')
@@ -24,9 +27,20 @@ openai.api_key = OPENAI_API_KEY
 
 app = Flask(__name__)
 
-CORS(app, resources={r"/*": {"origins": ["http://tensaihonyaku.com", "http://www.tensaihonyaku.com", "https://tensaihonyaku.com", "https://www.tensaihonyaku.com", "https://tensaihonyaku.wl.r.appspot.com/"]}})
+# Allow CORS for local development and production domains
+# CORS(app, resources={r"/*": {"origins": [
+#     # "http://tensaihonyaku.com", 
+#     # "http://www.tensaihonyaku.com", 
+#     # "https://tensaihonyaku.com", 
+#     # "https://www.tensaihonyaku.com", 
+#     # "https://tensaihonyaku.wl.r.appspot.com",
+#     "http://localhost:3000",  # Add localhost for development
+#     "http://127.0.0.1:3000"   # Add 127.0.0.1 for development
+#     # "http://localhost:5000",  # Add localhost for development
+#     # "http://127.0.0.1:5000"   # Add 127.0.0.1 for development
+# ]}})
 
-
+CORS(app, resources={r"/generation*": {"origins": "http://localhost:3000"}})
 
 
 
@@ -56,15 +70,20 @@ def main():
 
 
 @app.route('/generation', methods=['GET'])
+# @cross_origin()
 def generation():
 
+
     difficultyRange = request.args.getlist('difficultyRange[]')
+
+    # print('difficultyRange: ', difficultyRange)
+
 
     difficultyRangeStart = int(difficultyRange[0])
     difficultyRangeEnd =  int(difficultyRange[1])
 
 
-    queryRange = 9160 - 2467 #6693
+    queryRange = 9167 - 2467 #6700
 
 
     for _ in range(58):
@@ -73,6 +92,7 @@ def generation():
 
         WANIKANI_URL = 'https://api.wanikani.com/v2/subjects/' + str(ranNum)
         requestHeaders = { 'Authorization': 'Bearer ' + WANIKANI_API_TOKEN}
+
 
         body = requests.get(WANIKANI_URL, headers=requestHeaders)
  
@@ -107,7 +127,7 @@ def generation():
 def tokenize():
     content = request.get_json()
     source = content['textToTranslate']
-    print("SOURCE", source)
+    # print("SOURCE", source)
 
 
     r = Tokens.request(source)
@@ -120,7 +140,7 @@ def tokenize():
 
     content["tokenizedArray"] = tokenizedArray
 
-    print("TOKENIZED ARRAY", content["tokenizedArray"])
+    # print("TOKENIZED ARRAY", content["tokenizedArray"])
 
     return (jsonify(content), 201)
 
@@ -181,22 +201,22 @@ def reading():
             print("Max retries reached. The request has failed.")
             return None
 
-    start = time.time()
+    # start = time.time()
     response = make_request_with_retry()
-    end = time.time()
-    total_time = end - start
-    print(f"LOADING TIME: {total_time}")
+    # end = time.time()
+    # total_time = end - start
+    # print(f"LOADING TIME: {total_time}")
 
     if response:
 
-        print("Raw Response: ", response['choices'][0]['message']['content'])
+        # print("Raw Response: ", response['choices'][0]['message']['content'])
 
         s = response['choices'][0]['message']['content']
         cleaned_s = extract_json(s)
 
         obj_response = json.loads(cleaned_s)
-        print("obj_response", obj_response)
-        print("whole content: ", content)
+        # print("obj_response", obj_response)
+        # print("whole content: ", content)
 
         content["reading"] = obj_response
         return (jsonify(content), 201)
@@ -250,24 +270,24 @@ def hint():
     ]
 
 
-    start = time.time()
+    # start = time.time()
 
     response = openai.ChatCompletion.create(
         messages=messages,
-        model="gpt-3.5-turbo",
+        model="gpt-4o",
         max_tokens=1500,
     )
 
 
-    end = time.time()
+    # end = time.time()
 
-    total_time = end - start
+    # total_time = end - start
 
-    print(f"HINT LOADING TIME: {total_time}")
+    # print(f"HINT LOADING TIME: {total_time}")
 
 
     content['hint'] = response['choices'][0]['message']['content']
-    print(content['hint'])
+    # print(content['hint'])
     return (jsonify(content), 201)
 
 
@@ -279,44 +299,40 @@ def hint():
 
 @app.route('/analysis', methods=['POST'])
 def analysis():
+    try:
 
-    content = request.get_json()
-
-
-    openai_prompt = """I'm trying to practice translating Japanese sentences into English. 
-                        Using the source text, rate and give me an analysis and evaluation on my translation attempt. 
-                        Be critical of the nuances of the Japanese words and the English words I used. \n\n
-                        Source text: {}\n\n
-                        My attempt: {}\n\n
-                        Analysis: """.format(content['textToTranslate'], content['translatedText'])
-    
+        content = request.get_json()
 
 
-    start = time.time()
+        openai_prompt = """I'm trying to practice translating Japanese sentences into English. 
+                            Using the source text, rate and give me an analysis and evaluation on my translation attempt. 
+                            Be critical of the nuances of the Japanese words and the English words I used. \n\n
+                            Source text: {}\n\n
+                            My attempt: {}\n\n
+                            Start your response with 'AI Analysis: '""".format(content['textToTranslate'], content['translatedText'])
 
+        response = openai.ChatCompletion.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "You are an expert translator."},
+                {"role": "user", "content": openai_prompt}
+            ],
+            max_tokens=1000,
+            temperature=0.5
+        )
 
-    response = openai.Completion.create(
-        model="text-davinci-003",
-        prompt=openai_prompt,
-        temperature=0.7,
-        max_tokens=2000,
-        top_p=1,
-        frequency_penalty=0,
-        presence_penalty=0
-    )
-
-    end = time.time()
-
-    total_time = end - start
-
-    print(f"ATTEMPT ANALYSIS LOADING TIME: {total_time}")
+        # print('response: ', response)
 
 
 
 
-    content['attemptAnalysis'] = response['choices'][0]['text']
 
-    return (jsonify(content), 201)
+        content['attemptAnalysis'] = response['choices'][0]['message']['content']
+
+        return (jsonify(content), 201)
+
+    except Exception as e:
+        return jsonify({'error': str(e)})
 
 
 
@@ -327,51 +343,100 @@ def analysis():
 @app.route('/translation', methods=['POST'])
 def translation():
 
-    PAPAGO_API_URL = 'https://openapi.naver.com/v1/papago/n2mt'
-    DEFAULT_CONTENT_TYPE = 'application/x-www-form-urlencoded; charset=UTF-8'
-    SOURCE_LANG = 'ja'
-    TARGET_LANG = 'en'
+    try:
 
-    content = request.get_json()
-    # print(f"My Data: {content}")
-
-    payload = {
-        'text': content['textToTranslate'], 
-        'source': SOURCE_LANG, 
-        'target': TARGET_LANG
-    }
-
-    headers = {
-        'X-Naver-Client-Id': PAPAGO_CLIENT_ID,
-        'X-Naver-Client-Secret': PAPAGO_CLIENT_SECRET,
-        'Content-Type': DEFAULT_CONTENT_TYPE
-    }
-
-    body = requests.post(PAPAGO_API_URL, headers=headers, data=payload)
+        content = request.get_json()
+ 
+        messages = [
+            {"role": "system", "content": """You are an expert translator from Japanese to English."""},
+            {"role": "user", "content": """
+                Using the Japanese source text, give me an accurate English translation of it. Your response should only contain the translated text.
+                Here's the Japanese text to be translated into English: {}""".format(content['textToTranslate'])}
+        ]
 
 
-    data = json.loads(body.text)
-    content["suggestedTranslationFromPapago"] = data['message']['result']['translatedText']
-    content["suggestedTranslation"] = data['message']['result']['translatedText']
+
+        response = openai.ChatCompletion.create(
+            messages=messages,
+            model="gpt-4o",
+            max_tokens=1500,
+        )
+
+        print('RESPONSE: ', response['choices'][0]['message']['content'])
+        print('CONTENT: ', content)
+
+        content["suggestedTranslation"] = response['choices'][0]['message']['content']
+        
+        suggestedTranslationBoolsArray = []
+
+        suggestedTranslationArray = content['suggestedTranslation'].split() if content['generatedTextEngVerFromWanikani'] == '' else content['generatedTextEngVerFromWanikani'].split()
+        translatedTextArray = content['translatedText'].split()
+
+        for elem in suggestedTranslationArray:
+            if elem in translatedTextArray:
+                suggestedTranslationBoolsArray.append(True)
+            else:
+                suggestedTranslationBoolsArray.append(False)
+
+        content['suggestedTranslationBoolsArray'] = suggestedTranslationBoolsArray
+        content['translatedTextArray'] = translatedTextArray
+        content['suggestedTranslationArray'] = suggestedTranslationArray
+
+        print('CONTENT: ', content)
+
+        return (jsonify(content), 201)
 
 
-    suggestedTranslationBoolsArray = []
-
-    suggestedTranslationArray = content['suggestedTranslation'].split() if content['generatedTextEngVerFromWanikani'] == '' else content['generatedTextEngVerFromWanikani'].split()
-    translatedTextArray = content['translatedText'].split()
-
-    for elem in suggestedTranslationArray:
-        if elem in translatedTextArray:
-            suggestedTranslationBoolsArray.append(True)
-        else:
-            suggestedTranslationBoolsArray.append(False)
-
-    content['suggestedTranslationBoolsArray'] = suggestedTranslationBoolsArray
-    content['translatedTextArray'] = translatedTextArray
-    content['suggestedTranslationArray'] = suggestedTranslationArray
+    except Exception as e:
+        return jsonify({'error': str(e)})
 
 
-    return (jsonify(content), 201)
+    # PAPAGO_API_URL = 'https://openapi.naver.com/v1/papago/n2mt'
+    # DEFAULT_CONTENT_TYPE = 'application/x-www-form-urlencoded; charset=UTF-8'
+    # SOURCE_LANG = 'ja'
+    # TARGET_LANG = 'en'
+
+    # content = request.get_json()
+    # # print(f"My Data: {content}")
+
+    # payload = {
+    #     'text': content['textToTranslate'], 
+    #     'source': SOURCE_LANG, 
+    #     'target': TARGET_LANG
+    # }
+
+    # headers = {
+    #     'X-Naver-Client-Id': PAPAGO_CLIENT_ID,
+    #     'X-Naver-Client-Secret': PAPAGO_CLIENT_SECRET,
+    #     'Content-Type': DEFAULT_CONTENT_TYPE
+    # }
+
+    # body = requests.post(PAPAGO_API_URL, headers=headers, data=payload)
+    # print('body: ', body)
+
+
+    # data = json.loads(body.text)
+    # content["suggestedTranslationFromPapago"] = data['message']['result']['translatedText']
+    # content["suggestedTranslation"] = data['message']['result']['translatedText']
+
+
+    # suggestedTranslationBoolsArray = []
+
+    # suggestedTranslationArray = content['suggestedTranslation'].split() if content['generatedTextEngVerFromWanikani'] == '' else content['generatedTextEngVerFromWanikani'].split()
+    # translatedTextArray = content['translatedText'].split()
+
+    # for elem in suggestedTranslationArray:
+    #     if elem in translatedTextArray:
+    #         suggestedTranslationBoolsArray.append(True)
+    #     else:
+    #         suggestedTranslationBoolsArray.append(False)
+
+    # content['suggestedTranslationBoolsArray'] = suggestedTranslationBoolsArray
+    # content['translatedTextArray'] = translatedTextArray
+    # content['suggestedTranslationArray'] = suggestedTranslationArray
+
+
+    # return (jsonify(content), 201)
 
 
 
@@ -380,4 +445,5 @@ def translation():
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+#     app.run(debug=True)
+    app.run(host='0.0.0.0', port=8765)
