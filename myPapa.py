@@ -27,20 +27,16 @@ openai.api_key = OPENAI_API_KEY
 
 app = Flask(__name__)
 
-# Allow CORS for local development and production domains
-# CORS(app, resources={r"/*": {"origins": [
-#     # "http://tensaihonyaku.com", 
-#     # "http://www.tensaihonyaku.com", 
-#     # "https://tensaihonyaku.com", 
-#     # "https://www.tensaihonyaku.com", 
-#     # "https://tensaihonyaku.wl.r.appspot.com",
-#     "http://localhost:3000",  # Add localhost for development
-#     "http://127.0.0.1:3000"   # Add 127.0.0.1 for development
-#     # "http://localhost:5000",  # Add localhost for development
-#     # "http://127.0.0.1:5000"   # Add 127.0.0.1 for development
-# ]}})
 
-CORS(app, resources={r"/generation*": {"origins": "http://localhost:3000"}})
+CORS(app, resources={r"/*": {"origins": [
+    "http://tensaihonyaku.com",
+    "http://www.tensaihonyaku.com",
+    "https://tensaihonyaku.com",
+    "https://www.tensaihonyaku.com",
+    "https://tensaihonyaku.wl.r.appspot.com",
+]}})
+
+# CORS(app, resources={r"/generation*": {"origins": "http://localhost:3000"}})
 
 
 
@@ -366,7 +362,7 @@ def translation():
         print('CONTENT: ', content)
 
         content["suggestedTranslation"] = response['choices'][0]['message']['content']
-        
+
         suggestedTranslationBoolsArray = []
 
         suggestedTranslationArray = content['suggestedTranslation'].split() if content['generatedTextEngVerFromWanikani'] == '' else content['generatedTextEngVerFromWanikani'].split()
