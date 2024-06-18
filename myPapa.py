@@ -33,7 +33,7 @@ CORS(app, resources={r"/*": {"origins": [
     "http://www.tensaihonyaku.com",
     "https://tensaihonyaku.com",
     "https://www.tensaihonyaku.com",
-    "https://tensaihonyaku.wl.r.appspot.com",
+    # "https://tensaihonyaku.wl.r.appspot.com",
 ]}})
 
 # CORS(app, resources={r"/generation*": {"origins": "http://localhost:3000"}})
@@ -441,5 +441,5 @@ def translation():
 
 
 if __name__ == "__main__":
-#     app.run(debug=True)
-    app.run(host='0.0.0.0', port=8765)
+    app.run(debug=True)
+    # app.run(host='0.0.0.0', port=8765)
